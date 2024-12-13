@@ -1,1 +1,1 @@
-This is Xinya's personal and group assignments for TU Delft GEO 1015
+This is Xinya's personal and group assignments for TU Delft GEO1015
