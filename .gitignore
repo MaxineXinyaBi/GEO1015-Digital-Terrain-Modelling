@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 环境文件
+venv/
+.env
+.venv
+ENV/
+
+# 数据文件
+*.csv
+*.dat
+*.log
+*.tmp
