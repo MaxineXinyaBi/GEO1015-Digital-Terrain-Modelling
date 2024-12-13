@@ -27,19 +27,19 @@ ENV/
 *.log
 *.tmp
 
-# 忽略所有叫 test 的文件夹
+# ignore test folders
 test/
 
-# 忽略所有叫 trial.py 的文件
+# ignore trail.py
 trial.py
 
-# 忽略特定路径下的测试文件夹
+# ignore test
 */test/
 **/test/
 
-# 忽略所有 .pyc 文件
+# ignore pyc
 *.pyc
 
-# 忽略所有测试文件
+# ignore all test files
 *_test.py
 test_*.py
