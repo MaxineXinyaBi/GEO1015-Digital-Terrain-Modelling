@@ -1,0 +1,7 @@
+laspy>=2.5.0
+lazrs>=0.6.0
+numpy>=2.1.0
+startinpy>=0.12.0
+rasterio>=1.4.0
+polyscope==2.3.0
+tqdm>=4.60.0
