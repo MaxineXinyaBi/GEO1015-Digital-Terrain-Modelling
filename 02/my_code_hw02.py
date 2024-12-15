@@ -163,4 +163,61 @@ def gftin(pts, resolution, max_dist, max_angle):
     #     time.sleep(0.01)
     # return dt
 
+def filter_outlier(pts, k = 1.5):
+    """the function is to filter out outlier points using IQR method"""
+    z_values = pts[:, 2]
+    q1 = np.percentile(z_values, 25)
+    q3 = np.percentile(z_values, 75)
+    iqr = q3 - q1
+    interquartile_range =  iqr * k
 
+    lower_fence = q1 - interquartile_range
+    upper_fence = q3 + interquartile_range
+
+    mask = (z_values >= lower_fence) & (z_values <= upper_fence)
+    filtered_pts = pts[mask]
+    outliers = pts[~mask]
+    return filtered_pts, outliers
+
+def find_lowest_pt_in_cell(filter_pts, resolution):
+    """create initial TIN using the lowest pt in each cell"""
+    x_min, x_max = np.min(filter_pts[:, 0]), np.max(filter_pts[:, 0])
+    y_min, y_max = np.min(filter_pts[:, 1]), np.max(filter_pts[:, 1])
+
+    # calculate the number of cells
+    x_cell = np.ceil((x_max - x_min) / resolution).astype(int)
+    y_cell = np.ceil((y_max - y_min) / resolution).astype(int)
+
+    # loop every cell
+    initial_tin_pts = []
+    for i in range(x_cell):
+        for j in range(y_cell):
+            x_left = x_min + i * resolution
+            x_right = x_left + (i + 1) * resolution
+            y_bottom = y_min + j * resolution
+            y_top = y_min + (j + 1) * resolution
+
+            # create the mask to filter out the points that are in the current cell
+            pts_in_cell_mask = (filter_pts[:,0] >= x_left) & (filter_pts[:,0] < x_right) & (filter_pts[:,1] >= y_bottom) & (filter_pts[:,1] < y_top)
+            pts_in_cell = filter_pts[pts_in_cell_mask]
+            # if there are points in the cell find the point with lowest z value and add it to the initial tin vertices list
+            if len(pts_in_cell) > 0:
+                lowest_pt_index = np.argmin(pts_in_cell[:, 2])
+                initial_tin_pts.append(pts_in_cell[lowest_pt_index])
+
+    return np.array(initial_tin_pts)
+
+def create_initial_tin(qualified_pts):
+    """create initial tin with the lowest pt in each cell"""
+    initial_dt = startinpy.DT()
+    initial_dt.insert(qualified_pts)
+    return initial_dt
+
+def remaining_pts(filtered_pts, initial_tin_pts):
+    """get the remaining pt"""
+    mask = ~np.isin(filtered_pts, initial_tin_pts).all(axis=1)
+    remaining_pts = filtered_pts[mask]
+    return remaining_pts
+
+def densification_tin(initial_dt,remaining_pts,max_dist,max_angle):
+    pass
