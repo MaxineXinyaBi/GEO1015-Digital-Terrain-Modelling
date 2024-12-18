@@ -1,7 +1,7 @@
 # -- my_code_hw02.py
 # -- geo1015.2024.hw02
-# -- [YOUR NAME]
-# -- [YOUR STUDENT NUMBER]
+# -- Xinya Bi
+# -- 6195350
 
 
 import time
@@ -73,6 +73,7 @@ def interpolate_linear(dt, x, y):
 
 
 def find_natural_neighbors(dt, x, y):
+    """find the natural neighbours of unknown point,first insert it and then delete it"""
     temp_point = [x, y, 0.0]
     result = dt.insert_one_pt(temp_point)
 
@@ -90,7 +91,7 @@ def find_natural_neighbors(dt, x, y):
         dt.remove(temp_point_idx)
         return None
 
-    if len(neighbors ) == 0:
+    if len(neighbors) == 0:
         dt.remove(temp_point_idx)
         return None
 
@@ -141,8 +142,7 @@ def calculate_weights(centers, neighbors, dt, x, y):
     for i in range(len(neighbors)):
         center1 = centers[i]
         center2 = centers[i - 1]
-        voronoi_length = np.sqrt(
-            (center1[0] - center2[0]) ** 2 +(center1[1] - center2[1]) ** 2)
+        voronoi_length = np.sqrt((center1[0] - center2[0]) ** 2 +(center1[1] - center2[1]) ** 2)
 
         neighbor_point = dt.get_point(neighbors[i])
         distance = np.sqrt((x - neighbor_point[0]) ** 2 + (y - neighbor_point[1]) ** 2)
@@ -198,7 +198,7 @@ def interpolate_laplace(dt, x, y):
     except:
         return np.nan
 
-    # check if the point overlay with known points
+    # check if the point overlay with known points, if so, return the z value
     result = find_natural_neighbors(dt, x, y)
     if isinstance(result, (float, np.float64)):
         return result
@@ -253,54 +253,52 @@ def gftin(pts, resolution, max_dist, max_angle):
     Output:
       the startinpy DT of the ground
     """
-    # # step1: filter outlier
-    # filtered_points = filter_outlier(pts, k = 1.5)
 
     # step2 : construct initial tin network
     initial_tin_vertices = find_lowest_pt_in_cell_with_bbox(pts, resolution)
     initial_tin = create_initial_tin(initial_tin_vertices)
 
+    # step3: get remaining points
+    remaining_points = find_remaining_pts(pts, initial_tin_vertices)
 
-    # step3: get remaining points and construct final tin network
-    remaining_points = remaining_pts(pts, initial_tin_vertices)
-    final_tin = densification_tin(initial_tin, remaining_points, max_dist, max_angle)
+    # step4: the densification of initial tin
+    inside_points = filter_points_in_hull(initial_tin, remaining_points)
+    final_tin = densify_tin(initial_tin, inside_points, max_dist, max_angle)
 
     return final_tin
 
-
-# def filter_outlier(pts, k = 1.5):
-#     """the function is to filter out outlier points using IQR method"""
-#     z_values = pts[:, 2]
-#     q1 = np.percentile(z_values, 25)
-#     q3 = np.percentile(z_values, 75)
-#     iqr = q3 - q1
-#     interquartile_range =  iqr * k
-#
-#     lower_fence = q1 - interquartile_range
-#     upper_fence = q3 + interquartile_range
-#
-#     mask = (z_values >= lower_fence) & (z_values <= upper_fence)
-#     filtered_pts = pts[mask]
-#     return filtered_pts
-
-
 def find_lowest_pt_in_cell_with_bbox(pts, resolution):
     """Create initial TIN using the lowest point in each cell and add bounding box corner points."""
-    # Convert to numpy array (if not already)
     pts = np.array(pts)
 
-    # Get bounding box
+    # Get bounding box and add bounding box points into initial network manually
     x_min, y_min = np.min(pts[:, 0]), np.min(pts[:, 1])
     x_max, y_max = np.max(pts[:, 0]), np.max(pts[:, 1])
-    bbox = [x_min, y_min, x_max, y_max]
-    print(f"Bounding box: {bbox}")
+    # dynamic buffer
+    diagonal = np.sqrt((x_max - x_min) ** 2 + (y_max - y_min) ** 2)
+    buffer = diagonal * 0.02
+    bbox_corners = np.array([
+        [x_min - buffer, y_min - buffer],
+        [x_max + buffer, y_min - buffer],
+        [x_max + buffer, y_max + buffer],
+        [x_min - buffer, y_max + buffer],
+    ])
+    print(f"Diagonal: {diagonal}, Buffer: {buffer}")
+
+    # Find the closest point in the point cloud to each corner
+    initial_tin_pts = np.empty((0, 3))
+    for corner in bbox_corners:
+        distances = np.linalg.norm(pts[:, :2] - corner, axis=1)
+        closest_point_index = np.argmin(distances)
+        closest_point = pts[closest_point_index]
+        print(f"Corner: {corner}, Closest Point: {closest_point}, Distance: {distances[closest_point_index]}")
+        initial_tin_pts = np.vstack([initial_tin_pts, closest_point])
 
     # Calculate the number of cells
     x_cell = int(np.ceil((x_max - x_min) / resolution))
     y_cell = int(np.ceil((y_max - y_min) / resolution))
 
     # Loop through every cell to find the lowest point
-    initial_tin_pts = []
     for i in range(x_cell):
         for j in range(y_cell):
             x_left = x_min + i * resolution
@@ -315,27 +313,7 @@ def find_lowest_pt_in_cell_with_bbox(pts, resolution):
             # If there are points in the cell, find the point with the lowest z value
             if len(pts_in_cell) > 0:
                 lowest_pt_index = np.argmin(pts_in_cell[:, 2])
-                initial_tin_pts.append(pts_in_cell[lowest_pt_index])
-
-    # Convert to numpy array
-    initial_tin_pts = np.array(initial_tin_pts)
-
-    # Define bounding box corner points (2D)
-    buffer = 0.5
-    bbox_corners = np.array([
-        [x_min- buffer, y_min - buffer],
-        [x_max + buffer, y_min - buffer],
-        [x_max + buffer, y_max + buffer],
-        [x_min - buffer, y_max + buffer],
-    ])
-
-    # Find the closest point in the point cloud to each corner
-    for corner in bbox_corners:
-        distances = np.linalg.norm(pts[:, :2] - corner, axis=1)
-        closest_point_index = np.argmin(distances)
-        closest_point = pts[closest_point_index]  # Get the 3D coordinate [x, y, z]
-        print(f"Corner: {corner}, Closest Point: {closest_point}, Distance: {distances[closest_point_index]}")
-        initial_tin_pts = np.vstack([initial_tin_pts, closest_point])  # Add directly to the TIN points
+                initial_tin_pts = np.vstack([initial_tin_pts, pts_in_cell[lowest_pt_index]])
 
     return initial_tin_pts
 
@@ -346,70 +324,64 @@ def create_initial_tin(qualified_pts):
     initial_dt.insert(qualified_pts)
     return initial_dt
 
-def remaining_pts(pts, initial_tin_pts):
+def find_remaining_pts(pts, initial_tin_pts):
     """Get the remaining points"""
-    mask = ~np.any(np.all(pts[:, None, :] == initial_tin_pts[None, :, :], axis=2), axis=1)
-    return pts[mask]
+    original_pts = set(map(tuple, pts))
+    initial_tin_pts = set(map(tuple, initial_tin_pts))
+    remaining_pts = original_pts - initial_tin_pts
+    remaining_pts = np.array(list(remaining_pts))
+    return remaining_pts
 
-def densification_tin(initial_dt, remaining_pts, max_dist, max_angle):
-    """the densification of initial tin network"""
 
-    print(f"Starting points to process: {len(remaining_pts)}")
-    remaining_pts_list = remaining_pts.tolist()
-    outside_convex_hull_points = []  # 用于记录凸包外的点
-    iteration = 0
+def filter_points_in_hull(initial_tin, remaining_points):
+    """make sure every remaining point is inside initial convex hull"""
+    inside_points = []
+    points_outside = 0
 
-    while remaining_pts_list:
-        iteration += 1
+    for point in remaining_points:
+        xy_point = point[:2]
+        if initial_tin.is_inside_convex_hull(xy_point):
+            inside_points.append(point)
+        else:
+            points_outside += 1
+
+    if points_outside > 0:
+        print(f"remove {points_outside} points outside convex hull")
+
+    return np.array(inside_points)
+
+
+def densify_tin(initial_dt, inside_points, max_dist, max_angle):
+    inside_archive = inside_points.copy()
+
+    points_added = True
+
+    while points_added:
         points_added = False
-        points_checked = 0
-        points_added_this_round = 0
+        points_to_remove = []
 
-        for pt in remaining_pts_list[:]:
-            points_checked += 1
-            triangle_idx = initial_dt.locate([pt[0], pt[1]])
-
-            if triangle_idx is None:
-                # 如果 locate 返回 None，说明点在凸包之外
-                outside_convex_hull_points.append(pt)
-                print(f"Point outside convex hull: x={pt[0]}, y={pt[1]}, z={pt[2]}")
-                raise ValueError("Point outside convex hull")
+        for i, point in enumerate(inside_archive[:]):
+            containing_triangle_idx = initial_dt.locate(point[:2])
+            if containing_triangle_idx is None or (not initial_dt.is_finite(containing_triangle_idx)):
                 continue
 
-            p1 = initial_dt.get_point(triangle_idx[0])
-            p2 = initial_dt.get_point(triangle_idx[1])
-            p3 = initial_dt.get_point(triangle_idx[2])
+            p1 = initial_dt.get_point(containing_triangle_idx[0])
+            p2 = initial_dt.get_point(containing_triangle_idx[1])
+            p3 = initial_dt.get_point(containing_triangle_idx[2])
 
-            distance = pt_distance_to_plane(pt, p1, p2, p3)
-            angle = calculate_max_angle(pt, p1, p2, p3)
+            pt_distance = pt_distance_to_plane(point, p1, p2, p3)
+            pt_max_angle = calculate_max_angle(point, p1, p2, p3)
 
-            if distance < max_dist and angle < max_angle:
-                initial_dt.insert([pt])
-                remaining_pts_list.remove(pt)
-                points_added = True
-                points_added_this_round += 1
+            if pt_max_angle <= max_angle and pt_distance <= max_dist:
+                vi, is_new, z_updated = initial_dt.insert_one_pt(point)
+                if is_new:
+                    points_to_remove.append(i)
+                    points_added = True
 
-        print(f"Iteration {iteration}:")
-        print(f"  Points checked: {points_checked}")
-        print(f"  Points added: {points_added_this_round}")
-        print(f"  Remaining points: {len(remaining_pts_list)}")
-
-        if not points_added:
-            print("No points added in this iteration, breaking")
-            break
-
-    # 打印凸包外点的数量
-    print(f"Total points outside convex hull: {len(outside_convex_hull_points)}")
-
-    # 如果有点在凸包外，打印这些点的坐标
-    if outside_convex_hull_points:
-        print("Points outside convex hull:")
-        for pt in outside_convex_hull_points:
-            print(f"  x: {pt[0]:.3f}, y: {pt[1]:.3f}, z: {pt[2]:.3f}")
+        for idx in sorted(points_to_remove, reverse=True):
+            inside_archive = np.delete(inside_archive, idx, axis=0)
 
     return initial_dt
-
-
 
 
 def calculate_normal_vector(p1, p2, p3):
@@ -442,7 +414,4 @@ def calculate_max_angle(pt, p1, p2, p3):
         angles.append(float(degree))
 
     return max(angles)
-
-
-
 

@@ -148,7 +148,7 @@ def write_grid_to_disk(output_file, a, bbox, cellsize):
         width=a.shape[1],
         count=1,
         dtype=np.float32,
-        crs=rasterio.crs.CRS.from_string("EPSG:28992"),
+        # crs=rasterio.crs.CRS.from_string("EPSG:28992"),
         nodata=np.nan,
         transform=(cellsize, 0.0, bbox[0], 0.0, -cellsize, bbox[1]),
     ) as dst:
